@@ -1,11 +1,13 @@
 # 1. Import libraries
 import pandas as pd
-import torch
-import torch.nn as nn
+import numpy as np
 
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix
+
+from keras.models import Sequential
+from keras.layers import Dense
 
 # 2. Load dataset
 df = pd.read_csv('Churn_Modelling.csv')
@@ -20,8 +22,8 @@ df['Geography'] = le.fit_transform(df['Geography'])
 df['Gender'] = le.fit_transform(df['Gender'])
 
 # 5. Separate X and y
-X = df.drop('Exited', axis=1).values
-y = df['Exited'].values
+X = df.drop('Exited', axis=1)
+y = df['Exited']
 
 # 6. Split dataset
 X_train, X_test, y_train, y_test = train_test_split(
@@ -33,40 +35,26 @@ scaler = StandardScaler()
 X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 
-# 8. Convert into tensors
-X_train = torch.tensor(X_train, dtype=torch.float32)
-X_test = torch.tensor(X_test, dtype=torch.float32)
-y_train = torch.tensor(y_train, dtype=torch.float32).view(-1, 1)
-y_test = torch.tensor(y_test, dtype=torch.float32).view(-1, 1)
+# 8. Build neural network
+model = Sequential()
 
-# 9. Build neural network
-model = nn.Sequential(
-    nn.Linear(X_train.shape[1], 12),
-    nn.ReLU(),
-    nn.Linear(12, 8),
-    nn.ReLU(),
-    nn.Linear(8, 1),
-    nn.Sigmoid()
+model.add(Dense(12, input_dim=X_train.shape[1], activation='relu'))
+model.add(Dense(8, activation='relu'))
+model.add(Dense(1, activation='sigmoid'))
+
+# 9. Compile model
+model.compile(
+    optimizer='adam',
+    loss='binary_crossentropy',
+    metrics=['accuracy']
 )
 
-# 10. Loss and optimizer
-criterion = nn.BCELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+# 10. Train model
+model.fit(X_train, y_train, epochs=50, batch_size=10)
 
-# 11. Train model
-for epoch in range(50):
-    outputs = model(X_train)
-    loss = criterion(outputs, y_train)
+# 11. Predict
+y_pred = (model.predict(X_test) > 0.5).astype(int)
 
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
-
-# 12. Predict
-with torch.no_grad():
-    predictions = model(X_test)
-    y_pred = (predictions >= 0.5).int().numpy()
-
-# 13. Evaluate
-print("Accuracy:", accuracy_score(y_test.numpy(), y_pred))
-print("Confusion Matrix:\n", confusion_matrix(y_test.numpy(), y_pred))
+# 12. Evaluate
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
